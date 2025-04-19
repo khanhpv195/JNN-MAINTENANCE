@@ -16,6 +16,7 @@ import PropertyProblemScreen from '../screens/PropertyProblemScreen';
 import AccountBankScreen from '../screens/AccountBankScreen';
 import CompletedChecklistScreen from '../screens/CompletedChecklistScreen';
 import ImageViewerScreen from '../screens/ImageViewerScreen';
+import RequestScreen from '@/screens/RequestScreen';
 import { useTheme } from '../shared/theme';
 
 
@@ -43,6 +44,14 @@ function MainAppNavigator() {
                 options={{
                     title: t('navigation.home'),
                     tabBarIcon: ({ color }) => <Ionicons name="home" color={color} size={24} />,
+                }}
+            />
+            <Tab.Screen
+                name="Requets"
+                component={RequestScreen}
+                options={{
+                    title: t('navigation.requests'),
+                    tabBarIcon: ({ color }) => <Ionicons name="notifications" color={color} size={24} />,
                 }}
             />
             <Tab.Screen

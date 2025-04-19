@@ -35,7 +35,8 @@
     "task": "Task",
     "taskDetail": "Task Detail",
     "cleaningSchedule": "Cleaning Schedule",
-    "accountBank": "Account Bank"
+    "accountBank": "Account Bank",
+    "requests": "Requests"
   },
   "languages": {
     "english": "English",
