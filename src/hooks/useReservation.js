@@ -33,16 +33,11 @@ export const useReservation = () => {
             // Build request body
             const requestBody = {
                 date: date ? formattedDate : null,
+                status: 'IN_PROGRESS'
             };
 
-            // Add status filter if provided
-            if (status) {
-                requestBody.status = status;
-                console.log(`Filtering tasks by status: ${status}`);
-            }
 
-
-            const response = await POST('/listMaintenanceTasks', {
+            const response = await POST('/listInProgressMaintenanceTasks', {
                 body: requestBody,
             }).catch(error => {
                 // Check if the error is a permission error
@@ -82,6 +77,57 @@ export const useReservation = () => {
         }
     }, []);
 
+
+    const fetchMaintenancePendingTasks = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            // Build request body
+            const requestBody = {
+                status: 'ASSIGNED'
+            };
+
+            console.log('Fetching assigned tasks with request body:', requestBody);
+
+            const response = await POST('/listAssignedMaintenanceTasks', {
+                body: requestBody,
+            }).catch(error => {
+                // Check if the error is a permission error
+                if (error.message && error.message.includes('access denied')) {
+                    // Handle permission error without affecting login state
+                    setError('You do not have permission to access cleaning tasks');
+                    // Keep the tasks list empty but don't throw further
+                    setCleaningTasks([]);
+                    console.log('Permission error handled in useReservation hook:', error.message);
+                    // Return empty data to prevent further error handling
+                    return { data: [] };
+                }
+                // Re-throw other errors to be caught by the outer catch
+                throw error;
+            });
+
+
+            if (response && response.data) {
+                setCleaningTasks(response.data);
+                return response.data;
+            }
+            return response
+        } catch (err) {
+            console.error('Error fetching cleaning tasks:', err);
+            setError(err.message || 'Failed to load cleaning tasks');
+
+            // Show error alert for non-permission errors
+            if (!err.message.includes('access denied')) {
+                Alert.alert(
+                    'Error Loading Tasks',
+                    err.message || 'An error occurred while loading tasks',
+                    [{ text: 'OK' }]
+                );
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     /**
      * Get details of a specific cleaning task
@@ -176,6 +222,7 @@ export const useReservation = () => {
         error,
         clearError,
         fetchMaintenanceTasks,
+        fetchMaintenancePendingTasks,
         getTaskDetails,
         updateTask,
         uploadImage,

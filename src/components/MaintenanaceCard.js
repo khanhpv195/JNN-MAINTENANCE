@@ -1,5 +1,5 @@
-import { View, Text, Image, TouchableOpacity } from 'react-native';
-import { MapPinIcon, CalendarDaysIcon, WrenchScrewdriverIcon, BoltIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { MapPinIcon, WrenchScrewdriverIcon } from 'react-native-heroicons/outline';
 import NavigationService from '@/navigation/NavigationService';
 import { convertDate } from '@/utils';
 

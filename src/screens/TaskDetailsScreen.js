@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, ToastAndroid, Platform, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, ToastAndroid, Platform, Image, TextInput, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ChecklistModal from '../components/ChecklistModal';
 import { format } from 'date-fns';
@@ -8,6 +8,7 @@ import { STATUS } from '../constants/status';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import * as ImageManipulator from 'expo-image-manipulator';
 import TaskApis from '../shared/api/taskApis';
 import Toast from 'react-native-toast-message';
 
@@ -21,15 +22,13 @@ export default function TaskDetailsScreen({ route, navigation }) {
     const [showChecklist, setShowChecklist] = useState(false);
     const [task, setTask] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { loading, error, getTaskDetails, fetching, setFetching, updateTask } = useReservation();
+    const { loading, error, getTaskDetails, updateTask } = useReservation();
     const [taskId, setTaskId] = useState(null);
     const [selectedImages, setSelectedImages] = useState([]);
     const [showImageUploader, setShowImageUploader] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
-    const [price, setPrice] = useState('');
     const [rawPrice, setRawPrice] = useState('');
 
-    console.log('tasfafafafafafak', task);
 
     const refreshData = () => {
         fetchTaskDetails();
@@ -172,28 +171,54 @@ export default function TaskDetailsScreen({ route, navigation }) {
 
             // Create a single FormData with all images
             const formData = new FormData();
-
-            // Add all selected images to the same FormData
-            selectedImages.forEach((image, index) => {
-                const imageUri = image.uri;
-                const fileName = imageUri.split('/').pop();
-                const match = /\.(\w+)$/.exec(fileName);
-                const type = match ? `image/${match[1]}` : 'image';
-
-                // Add each file with the same "files" key (API will handle multiple files with same key)
-                formData.append('files', {
-                    uri: imageUri,
-                    name: fileName,
-                    type
-                });
-
-                console.log(`Added image ${index + 1}/${selectedImages.length} to FormData`);
-            });
+            
+            // Process and compress each image before adding to FormData
+            for (let i = 0; i < selectedImages.length; i++) {
+                const image = selectedImages[i];
+                setUploadProgress(10 + (i * 10)); // Update progress during compression
+                
+                try {
+                    // Compress the image using ImageManipulator
+                    const compressedImage = await ImageManipulator.manipulateAsync(
+                        image.uri,
+                        [{ resize: { width: 1024 } }], // Resize to max width of 1024px
+                        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG } // Compress to 50% quality
+                    );
+                    
+                    const imageUri = compressedImage.uri;
+                    const fileName = imageUri.split('/').pop();
+                    const match = /\.([\w]+)$/.exec(fileName);
+                    const type = 'image/jpeg'; // Force JPEG type for consistency
+                    
+                    // Add the compressed image to FormData
+                    formData.append('files', {
+                        uri: imageUri,
+                        name: fileName || `image_${i}.jpg`,
+                        type
+                    });
+                    
+                    console.log(`Added compressed image ${i + 1}/${selectedImages.length} to FormData`);
+                } catch (compressionError) {
+                    console.error('Error compressing image:', compressionError);
+                    // Fallback to original image if compression fails
+                    const imageUri = image.uri;
+                    const fileName = imageUri.split('/').pop();
+                    const match = /\.([\w]+)$/.exec(fileName);
+                    const type = match ? `image/${match[1]}` : 'image';
+                    
+                    formData.append('files', {
+                        uri: imageUri,
+                        name: fileName,
+                        type
+                    });
+                    console.log(`Added original image ${i + 1}/${selectedImages.length} to FormData (compression failed)`);
+                }
+            }
 
             setUploadProgress(30); // Update progress after preparing FormData
 
             try {
-                console.log(`Uploading ${selectedImages.length} images at once...`);
+                console.log(`Uploading ${selectedImages.length} compressed images at once...`);
 
                 // Upload all images in one request
                 const response = await TaskApis.uploadImage(formData);
@@ -587,7 +612,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
         );
     };
 
-    const MaintenanceUI = ({ task, isSubmitting, handleAcceptTask, setShowChecklist }) => {
+    const MaintenanceUI = ({ task, isSubmitting, handleAcceptTask }) => {
         // Log task structure for debugging
         console.log('MaintenanceUI rendering with task:', task?._id);
 
@@ -764,18 +789,11 @@ export default function TaskDetailsScreen({ route, navigation }) {
                         ))}
                     </ScrollView>
 
-                    {/* Maintenance Price - SIMPLIFIED */}
+                    {/* Maintenance Price - Simple with no formatting */}
                     <View style={styles.notesContainer}>
                         <Text style={styles.notesLabel}>
                             Maintenance Price <Text style={styles.requiredText}>*</Text>
                         </Text>
-
-                        {/* Show formatted preview */}
-                        {rawPrice ? (
-                            <Text style={styles.priceDisplay}>
-                                ${parseInt(rawPrice, 10).toLocaleString('en-US')}
-                            </Text>
-                        ) : null}
 
                         {/* Simple plain numeric input - no formatting */}
                         <TextInput
@@ -789,10 +807,14 @@ export default function TaskDetailsScreen({ route, navigation }) {
                             placeholder="Enter price in dollars"
                             keyboardType="numeric"
                             returnKeyType="done"
+                            disableFullscreenUI={true}
+                            autoFocus={false}
+                            caretHidden={false}
+                            contextMenuHidden={true}
                         />
 
                         <Text style={styles.priceHelperText}>
-                            Enter whole dollar amount (no cents) - will be charged as ${rawPrice ? parseInt(rawPrice, 10).toLocaleString('en-US') : '0'}
+                            Enter whole dollar amount (no cents)
                         </Text>
                     </View>
 

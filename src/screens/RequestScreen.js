@@ -7,13 +7,14 @@ import { STATUS } from '../constants/status';
 
 export default function RequestScreen() {
     const navigation = useNavigation();
-    const { cleaningTasks, loading, error, updateTask, fetchMaintenanceTasks, setFetching } = useReservation();
+    const { cleaningTasks, loading, error, updateTask, fetchMaintenancePendingTasks, setFetching } = useReservation();
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    
 
     const refreshData = () => {
         // Make sure we explicitly pass the PENDING status
-        console.log('Refreshing with status:', STATUS.PENDING);
-        fetchMaintenanceTasks(null, STATUS.PENDING);
+        fetchMaintenancePendingTasks(null, STATUS.ASSIGNED);
     };
 
     useFocusEffect(
@@ -55,7 +56,7 @@ export default function RequestScreen() {
     // Effect for data fetching - only triggered by explicit actions
     useEffect(() => {
         // Initial data load only
-        fetchMaintenanceTasks(null, STATUS.PENDING);
+        fetchMaintenancePendingTasks(null, STATUS.ASSIGNED);
     }, []); // Empty dependency array - only run once on mount
 
     const handleRefresh = () => {
@@ -131,12 +132,13 @@ export default function RequestScreen() {
                 };
             }
 
+            // Format as yyyy mm dd
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+
             return {
-                date: date.toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                }),
+                date: `${year} ${month} ${day}`,
                 time: date.toLocaleString('en-US', {
                     hour: 'numeric',
                     minute: 'numeric',
@@ -151,14 +153,14 @@ export default function RequestScreen() {
             propertyId,
             checkOutDate,
             checkInDate,
+            deadlineDate,
             price = { amount: 0, currency: 'USD' },
             urgency = 'MEDIUM',
             reservationId = ''
         } = item;
 
         // Format dates with better error handling
-        const checkout = formatCheckoutDateTime(checkOutDate);
-        const checkin = formatCheckoutDateTime(checkInDate);
+        const checkout = formatCheckoutDateTime(deadlineDate);
 
         // Get property details from propertyId
         const propertyName = propertyId?.name || 'Unknown Property';
@@ -225,28 +227,14 @@ export default function RequestScreen() {
                         <View style={styles.checkoutInfo}>
                             <Ionicons name="calendar-outline" size={16} color="#666" />
                             <View style={styles.checkoutTexts}>
-                                <Text style={styles.checkoutLabel}>Check-out:</Text>
-                                <Text style={[styles.checkoutDate, !checkOutDate && styles.noDateText]}>
+                                <Text style={styles.checkoutLabel}>Deadline Date:</Text>
+                                <Text style={styles.checkoutDate}>
                                     {checkout.date}
                                 </Text>
-                                <Text style={[styles.checkoutTime, !checkOutDate && styles.noDateText]}>
-                                    {checkout.time}
-                                </Text>
+
                             </View>
                         </View>
 
-                        <View style={styles.checkoutInfo}>
-                            <Ionicons name="calendar-outline" size={16} color="#666" />
-                            <View style={styles.checkoutTexts}>
-                                <Text style={styles.checkoutLabel}>Check-in:</Text>
-                                <Text style={[styles.checkoutDate, !checkInDate && styles.noDateText]}>
-                                    {checkin.date}
-                                </Text>
-                                <Text style={[styles.checkoutTime, !checkInDate && styles.noDateText]}>
-                                    {checkin.time}
-                                </Text>
-                            </View>
-                        </View>
                     </View>
 
                     <View style={styles.divider} />
@@ -276,19 +264,24 @@ export default function RequestScreen() {
                         </View>
                     )}
                 </View>
+                {
+                    status === STATUS.PENDING || status === STATUS.ASSIGNED && (
 
-                <TouchableOpacity
-                    style={[
-                        styles.acceptButton,
-                        isSubmitting && styles.disabledButton
-                    ]}
-                    onPress={() => handleAcceptTask(item)}
-                    disabled={isSubmitting}
-                >
-                    <Text style={styles.acceptButtonText}>
-                        {isSubmitting ? 'Processing...' : 'Accept Request'}
-                    </Text>
-                </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[
+                                styles.acceptButton,
+                                isSubmitting && styles.disabledButton
+                            ]}
+                            onPress={() => handleAcceptTask(item)}
+                            disabled={isSubmitting}
+                        >
+                            <Text style={styles.acceptButtonText}>
+                                {isSubmitting ? 'Processing...' : 'Accept Request'}
+                            </Text>
+                        </TouchableOpacity>
+                    )
+                }
+
             </TouchableOpacity>
         );
     };
@@ -344,7 +337,7 @@ export default function RequestScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Cleaning Requests</Text>
+                <Text style={styles.headerTitle}>Maintenance Requests</Text>
             </View>
 
             {loading && filteredTasks.length === 0 ? (
