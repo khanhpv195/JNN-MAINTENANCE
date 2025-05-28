@@ -491,46 +491,8 @@ export default function TaskDetailsScreen({ route, navigation }) {
                     <Text style={styles.typeText}>{task?.type || 'CLEANING'}</Text>
                 </View>
 
-                {/* Time Section */}
-                <View style={styles.timeSection}>
-                    <View style={styles.timeColumn}>
-                        <Text style={styles.timeLabel}>Check In</Text>
-                        <Text style={styles.timeValue}>
-                            {checkInDate ?
-                                format(new Date(checkInDate), 'h:mm a')
-                                : 'N/A'}
-                        </Text>
-                        <Text style={styles.dateText}>
-                            {checkInDate ?
-                                format(new Date(checkInDate), 'EEE, MMM d yyyy')
-                                : 'N/A'}
-                        </Text>
-                    </View>
-                    <View style={styles.timeColumn}>
-                        <Text style={styles.timeLabel}>Check Out</Text>
-                        <Text style={styles.timeValue}>
-                            {checkOutDate ?
-                                format(new Date(checkOutDate), 'h:mm a')
-                                : 'N/A'}
-                        </Text>
-                        <Text style={styles.dateText}>
-                            {checkOutDate ?
-                                format(new Date(checkOutDate), 'EEE, MMM d yyyy')
-                                : 'N/A'}
-                        </Text>
-                    </View>
-                </View>
-
                 {/* Details List */}
                 <View style={styles.detailsList}>
-                    <TouchableOpacity style={styles.detailItem}>
-                        <Ionicons name="location" size={24} color="#666" />
-                        <Text style={styles.detailText}>
-                            {formattedAddress || 'No address available'}
-                        </Text>
-                    </TouchableOpacity>
-
-                    {/* Status Tags */}
                     <View style={[styles.detailItem, styles.statusContainer]}>
                         <Ionicons name="stats-chart" size={24} color="#666" />
                         <Text style={styles.detailText}>Status</Text>
@@ -762,6 +724,46 @@ export default function TaskDetailsScreen({ route, navigation }) {
         );
     };
 
+    // Create a memoized PriceInput component to prevent re-renders
+    const PriceInput = React.memo(({ value, onChange }) => {
+        // Use internal state to prevent re-renders from parent
+        const [internalValue, setInternalValue] = useState(value || '');
+        
+        // Only update parent when focus is lost
+        const handleBlur = () => {
+            if (internalValue !== value) {
+                onChange(internalValue);
+            }
+        };
+        
+        // Update internal value without triggering parent re-render
+        const handleChange = (text) => {
+            // Only allow digits
+            const numericOnly = text.replace(/[^0-9]/g, '');
+            setInternalValue(numericOnly);
+        };
+        
+        // Sync with parent value when it changes externally
+        useEffect(() => {
+            if (value !== internalValue) {
+                setInternalValue(value);
+            }
+        }, [value]);
+        
+        return (
+            <TextInput
+                style={styles.notesInput}
+                value={internalValue}
+                onChangeText={handleChange}
+                onBlur={handleBlur}
+                placeholder="Enter price in dollars"
+                keyboardType="numeric"
+                returnKeyType="done"
+                underlineColorAndroid="transparent"
+            />
+        );
+    });
+
     // Image Uploader Component
     const ImageUploader = () => {
         if (!showImageUploader) return null;
@@ -796,21 +798,9 @@ export default function TaskDetailsScreen({ route, navigation }) {
                         </Text>
 
                         {/* Simple plain numeric input - no formatting */}
-                        <TextInput
-                            style={styles.notesInput}
-                            value={rawPrice}
-                            onChangeText={(text) => {
-                                // Only allow digits
-                                const numericOnly = text.replace(/[^0-9]/g, '');
-                                setRawPrice(numericOnly);
-                            }}
-                            placeholder="Enter price in dollars"
-                            keyboardType="numeric"
-                            returnKeyType="done"
-                            disableFullscreenUI={true}
-                            autoFocus={false}
-                            caretHidden={false}
-                            contextMenuHidden={true}
+                        <PriceInput 
+                            value={rawPrice} 
+                            onChange={setRawPrice} 
                         />
 
                         <Text style={styles.priceHelperText}>
@@ -1249,6 +1239,10 @@ const styles = StyleSheet.create({
         padding: 12,
         fontSize: 16,
         backgroundColor: '#f9f9f9',
+    },
+    notesInputFocused: {
+        borderColor: '#00BFA5',
+        backgroundColor: '#fff',
     },
     requiredText: {
         color: '#FF5252',
