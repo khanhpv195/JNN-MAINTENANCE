@@ -10,7 +10,7 @@ import ForgotPasswordScreen from '../screens/authentication/ForgotPassword';
 import SettingsScreen from '../screens/SettingsScreen';
 import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
-import HomeScreen from '../screens/HomeScreen';
+import HomeScreen from '../screens/HomeScreen2';
 import TaskDetailsScreen from '../screens/TaskDetailsScreen';
 import PropertyProblemScreen from '../screens/PropertyProblemScreen';
 import AccountBankScreen from '../screens/AccountBankScreen';
