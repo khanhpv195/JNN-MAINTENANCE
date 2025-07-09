@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import TaskApis from '../shared/api/taskApis';
-import { POST } from '../shared/api/fetch';
 import format from 'date-fns/format';
+import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { STATUS } from '../constants/status';
+import TaskApis from '../shared/api/taskApis';
+import { POST } from '../shared/api/fetch';
 
 /**
  * Custom hook for managing cleaning tasks
@@ -15,6 +15,8 @@ export const useReservation = () => {
     const [error, setError] = useState(null);
     const [cleaningTasks, setCleaningTasks] = useState([]);
     const [refreshKey, setRefreshKey] = useState(0);
+    // Task cache to store tasks by date to prevent data loss when switching dates
+    const [taskCache, setTaskCache] = useState(new Map());
 
     /**
      * Fetch all cleaning tasks for a specific date
@@ -75,6 +77,33 @@ export const useReservation = () => {
         } finally {
             setLoading(false);
         }
+    }, []);
+
+    // Helper function to update task cache
+    const updateTaskCache = useCallback((tasks) => {
+        // Group tasks by date
+        const tasksByDate = new Map();
+        tasks.forEach(task => {
+            // For maintenance tasks, use deadlineDate
+            // For cleaning tasks, use checkOutDate or reservationDetails.checkOut
+            const taskDate = task.deadlineDate || task.checkOutDate || task.reservationDetails?.checkOut;
+            if (taskDate) {
+                const dateKey = format(new Date(taskDate), 'yyyy-MM-dd');
+                if (!tasksByDate.has(dateKey)) {
+                    tasksByDate.set(dateKey, []);
+                }
+                tasksByDate.get(dateKey).push(task);
+            }
+        });
+        
+        // Update cache with new data
+        setTaskCache(prevCache => {
+            const newCache = new Map(prevCache);
+            tasksByDate.forEach((dateTasks, dateKey) => {
+                newCache.set(dateKey, dateTasks);
+            });
+            return newCache;
+        });
     }, []);
 
 
@@ -205,6 +234,26 @@ export const useReservation = () => {
 
     const clearError = () => setError(null);
 
+    // Get all cached tasks for calendar generation
+    const getAllCachedTasks = useCallback(() => {
+        const allTasks = [];
+        for (const tasks of taskCache.values()) {
+            allTasks.push(...tasks);
+        }
+        return allTasks;
+    }, [taskCache]);
+
+    // Clear task cache
+    const clearTaskCache = useCallback(() => {
+        setTaskCache(new Map());
+        setCleaningTasks([]);
+    }, []);
+
+    // Force a refresh of data
+    const refreshTasks = () => {
+        setRefreshKey(prev => prev + 1);
+    };
+
     const uploadImage = async (formData) => {
         try {
             const response = await TaskApis.uploadImage(formData);
@@ -215,20 +264,138 @@ export const useReservation = () => {
         }
     };
 
+    /**
+     * Group tasks by date
+     * @param {Date} date - Date to filter tasks for
+     * @returns {Array} - Tasks for the specified date
+     */
+    const getTasksForDate = useCallback((date) => {
+        if (!date || !cleaningTasks || cleaningTasks.length === 0) {
+            return [];
+        }
+        
+        const compareDate = new Date(date);
+        compareDate.setHours(0, 0, 0, 0);
+        
+        return cleaningTasks.filter(task => {
+            // Skip pending tasks if needed
+            if (task.status === STATUS.PENDING) return false;
+            
+            // Get the task date from deadlineDate (maintenance) or checkOutDate/reservationDetails.checkOut (cleaning)
+            const taskDate = new Date(task.deadlineDate || task.checkOutDate || task.reservationDetails?.checkOut);
+            taskDate.setHours(0, 0, 0, 0);
+            
+            return taskDate.toDateString() === compareDate.toDateString();
+        });
+    }, [cleaningTasks]);
+
+    /**
+     * Fetch all cleaning tasks without date filtering
+     * This will get all tasks from the API in a single call
+     * @returns {Promise} - API response with all tasks
+     */
+    const fetchAllMaintenanceTasks = useCallback(async () => {
+        try {
+            if (fetching) {
+                console.log('Already fetching data, skipping redundant request');
+                return [];
+            }
+            
+            setFetching(true);
+            setLoading(true);
+            setError(null);
+            
+            console.log('Fetching all cleaning tasks (no date filter)');
+            
+            // Call API without any date filter to get all tasks
+            const response = await TaskApis.listAllMaintenanceTasks({ status: 'IN_PROGRESS'});
+
+            if (response && response.data) {
+                const tasks = response.data;
+                console.log(`Fetched ${tasks.length} total tasks`);
+                
+                // Update the task cache
+                updateTaskCache(tasks);
+                
+                // Update state with all tasks
+                setCleaningTasks(tasks);
+                
+                return tasks;
+            }
+            return [];
+        } catch (err) {
+            console.error('Error fetching all cleaning tasks:', err);
+            setError(err.message || 'Failed to load cleaning tasks');
+            return [];
+        } finally {
+            setLoading(false);
+            setFetching(false);
+        }
+    }, [fetching, updateTaskCache]);
+
+    /**
+     * Get all tasks grouped by date
+     * @returns {Array} Array of objects with date and tasks
+     */
+    const getAllTasksGroupedByDate = useCallback(() => {
+        if (!cleaningTasks || cleaningTasks.length === 0) {
+            return [];
+        }
+        
+        // Create a map to group tasks by date
+        const tasksByDate = new Map();
+        
+        cleaningTasks.forEach(task => {
+            // Skip pending tasks if needed
+            // if (task.status === STATUS.PENDING) return;
+            
+            // Get the task date from deadlineDate (maintenance) or checkOutDate/reservationDetails.checkOut (cleaning)
+            const taskDate = task.deadlineDate || task.checkOutDate || task.reservationDetails?.checkOut;
+            if (!taskDate) return;
+            
+            const date = new Date(taskDate);
+            date.setHours(0, 0, 0, 0);
+            const dateStr = date.toDateString();
+            
+            if (!tasksByDate.has(dateStr)) {
+                tasksByDate.set(dateStr, {
+                    date: date,
+                    tasks: []
+                });
+            }
+            
+            tasksByDate.get(dateStr).tasks.push(task);
+        });
+        
+        // Convert map to array and sort by date
+        const result = Array.from(tasksByDate.values()).sort((a, b) => 
+            a.date.getTime() - b.date.getTime()
+        );
+        
+        console.log(`[getAllTasksGroupedByDate] Found ${result.length} days with tasks`);
+        return result;
+    }, [cleaningTasks]);
+
     return {
         cleaningTasks,
         loading,
         fetching,
+        setFetching,
         error,
         clearError,
         fetchMaintenanceTasks,
         fetchMaintenancePendingTasks,
+        fetchAllMaintenanceTasks,
         getTaskDetails,
         updateTask,
         uploadImage,
         updateProperty,
         refreshKey,
         setRefreshKey,
-        setFetching
+        getTasksForDate,
+        getAllTasksGroupedByDate,
+        clearTaskCache,
+        getAllCachedTasks,
+        refreshTasks
     };
-}; 
+};

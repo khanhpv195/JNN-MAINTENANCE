@@ -165,6 +165,10 @@ const TaskApis = {
 
     updateBankInformation: (params) => {
         return POST('/updateUser', { body: params });
+    },
+
+    listAllMaintenanceTasks: (params) => {
+        return POST('/listInProgressMaintenanceTasks',  { body: params })
     }
 };
 
