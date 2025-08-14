@@ -2,23 +2,48 @@ import { Ionicons } from '@expo/vector-icons';
 import { addDays, isSameDay, subDays } from 'date-fns';
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getTaskDotConfig } from '../../utils/calendarUtils';
+
+// TaskIndicatorDot component for smart task indicators
+const TaskIndicatorDot = ({ dotConfig, isSelected }) => {
+  if (!dotConfig.show) return null;
+
+  const dotStyle = {
+    position: 'absolute',
+    bottom: 0,
+    borderRadius: dotConfig.size / 2,
+    backgroundColor: isSelected ? '#ffffff' : dotConfig.backgroundColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  if (dotConfig.showCount) {
+    // Count bubble for 3+ tasks
+    return (
+      <View style={[dotStyle, { width: dotConfig.size, height: dotConfig.size }]}>
+        <Text style={{
+          color: isSelected ? dotConfig.backgroundColor : '#ffffff',
+          fontSize: 10,
+          fontWeight: 'bold'
+        }}>
+          {dotConfig.count}
+        </Text>
+      </View>
+    );
+  }
+
+  // Simple dot for 1-2 tasks
+  return (
+    <View style={[dotStyle, { width: dotConfig.size, height: dotConfig.size }]} />
+  );
+};
 
 const WeekCalendar = ({ calendarDays, selectedDate, onDateSelect }) => {
     const [currentWeekStart, setCurrentWeekStart] = useState(new Date());
     const scrollViewRef = useRef(null);
 
-    // Debug logging for calendar days
-    useEffect(() => {
-        if (calendarDays && calendarDays.length > 0) {
-            const daysWithTasks = calendarDays.filter(day => day.hasTask);
-            console.log(`[WeekCalendar] Days with tasks: ${daysWithTasks.length}`);
-            
-            if (daysWithTasks.length > 0) {
-                console.log(`[WeekCalendar] Days with tasks:`, 
-                    daysWithTasks.map(day => `${day.fullDate.toDateString()}: ${day.tasksCount} tasks`).join(', '));
-            }
-        }
-    }, [calendarDays]);
+    // Use provided calendarDays (already enhanced by parent component)
+    const daysToRender = calendarDays || [];
 
     // Scroll to center on mount and when selectedDate changes
     useEffect(() => {
@@ -77,13 +102,9 @@ const WeekCalendar = ({ calendarDays, selectedDate, onDateSelect }) => {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.daysContainer}
             >
-                {calendarDays.map((day, index) => {
+                {daysToRender.map((day, index) => {
                     const isSelected = selectedDate && isSameDay(day.fullDate, selectedDate);
-                    
-                    // Debug log for days with tasks
-                    if (day.hasTask) {
-                        console.log(`[WeekCalendar] Rendering day ${day.day} (${day.fullDate.toDateString()}) with ${day.tasksCount} tasks, hasTask=${day.hasTask}`);
-                    }
+                    const dotConfig = day.dotConfig || getTaskDotConfig(day.taskCount || 0);
                     
                     return (
                         <TouchableOpacity
@@ -107,27 +128,25 @@ const WeekCalendar = ({ calendarDays, selectedDate, onDateSelect }) => {
                                 style={[
                                     styles.dateCircle,
                                     isSelected && styles.selectedDateCircle,
-                                    day.isToday && styles.todayCircle
+                                    day.isToday && !isSelected && styles.todayCircle
                                 ]}
                             >
                                 <Text
                                     style={[
                                         styles.dateText,
                                         isSelected && styles.selectedDateText,
-                                        day.isToday && styles.todayDateText
+                                        day.isToday && !isSelected && styles.todayDateText
                                     ]}
                                 >
                                     {day.date}
                                 </Text>
                             </View>
-                            {day.hasTask && (
-                                <View 
-                                    style={[
-                                        styles.taskIndicator,
-                                        isSelected && styles.selectedTaskIndicator
-                                    ]} 
-                                />
-                            )}
+                            
+                            {/* Enhanced task indicator with smart dots */}
+                            <TaskIndicatorDot 
+                                dotConfig={dotConfig} 
+                                isSelected={isSelected}
+                            />
                         </TouchableOpacity>
                     );
                 })}
@@ -226,6 +245,7 @@ const styles = StyleSheet.create({
         color: '#00BFA6',
         fontWeight: '600',
     },
+    // Legacy task indicator styles - kept for compatibility
     taskIndicator: {
         position: 'absolute',
         bottom: 0,
@@ -235,7 +255,7 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     selectedTaskIndicator: {
-        backgroundColor: '#ffffff', // Chấm trắng khi ngày được chọn
+        backgroundColor: '#ffffff',
     }
 });
 
